@@ -1,0 +1,21 @@
+{
+    "KPackageStructure": "KWin/Script",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Email": "cosmo@geeks.gay",
+                "Name": "cosmo"
+            }
+        ],
+        "Category": "Window Management",
+        "Description": "macOS-style Stage Manager: one group of windows on screen, the rest as live thumbnails on the left edge",
+        "Icon": "window-duplicate",
+        "Id": "kwin-stage-manager",
+        "License": "MIT",
+        "Name": "Stage Manager",
+        "Version": "0.1.0"
+    },
+    "X-KDE-ConfigModule": "kwin/effects/configs/kcm_kwin4_genericscripted",
+    "X-Plasma-API": "declarativescript",
+    "X-Plasma-MainScript": "ui/main.qml"
+}

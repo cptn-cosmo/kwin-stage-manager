@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>StageManagerConfig</class>
+ <widget class="QWidget" name="StageManagerConfig">
+  <layout class="QFormLayout" name="form">
+   <item row="0" column="0">
+    <widget class="QLabel" name="stripWidthLabel">
+     <property name="text"><string>Strip width:</string></property>
+    </widget>
+   </item>
+   <item row="0" column="1">
+    <widget class="QSpinBox" name="kcfg_StripWidth">
+     <property name="suffix"><string> px</string></property>
+     <property name="minimum"><number>80</number></property>
+     <property name="maximum"><number>600</number></property>
+     <property name="value"><number>180</number></property>
+    </widget>
+   </item>
+   <item row="1" column="0">
+    <widget class="QLabel" name="maxStagesLabel">
+     <property name="text"><string>Stages in strip:</string></property>
+    </widget>
+   </item>
+   <item row="1" column="1">
+    <widget class="QSpinBox" name="kcfg_MaxVisibleStages">
+     <property name="minimum"><number>1</number></property>
+     <property name="maximum"><number>20</number></property>
+     <property name="value"><number>6</number></property>
+    </widget>
+   </item>
+   <item row="2" column="0">
+    <widget class="QLabel" name="strategyLabel">
+     <property name="text"><string>Hide other stages by:</string></property>
+    </widget>
+   </item>
+   <item row="2" column="1">
+    <widget class="QComboBox" name="kcfg_HidingStrategy">
+     <item><property name="text"><string>Minimizing them</string></property></item>
+     <item><property name="text"><string>Moving them to a hidden virtual desktop</string></property></item>
+    </widget>
+   </item>
+   <item row="3" column="0">
+    <widget class="QLabel" name="maximizedLabel">
+     <property name="text"><string>Maximized windows:</string></property>
+    </widget>
+   </item>
+   <item row="3" column="1">
+    <widget class="QComboBox" name="kcfg_MaximizedPolicy">
+     <item><property name="text"><string>Shrink to make room for the strip</string></property></item>
+     <item><property name="text"><string>Shift right, keep size</string></property></item>
+     <item><property name="text"><string>Leave alone (strip covers them)</string></property></item>
+    </widget>
+   </item>
+   <item row="4" column="1">
+    <widget class="QCheckBox" name="kcfg_KeepWindowsClear">
+     <property name="text"><string>Move windows out from under the strip</string></property>
+    </widget>
+   </item>
+   <item row="5" column="1">
+    <widget class="QCheckBox" name="kcfg_AutoSwitchOnFocus">
+     <property name="text"><string>Switch stage when a hidden window gets focus (Alt+Tab, taskbar, notifications)</string></property>
+    </widget>
+   </item>
+   <item row="6" column="1">
+    <widget class="QCheckBox" name="kcfg_GroupByClass">
+     <property name="text"><string>Open new windows in the stage their app was grouped into</string></property>
+    </widget>
+   </item>
+   <item row="7" column="1">
+    <widget class="QCheckBox" name="kcfg_PersistGroups">
+     <property name="text"><string>Remember app groups across sessions</string></property>
+    </widget>
+   </item>
+   <item row="8" column="1">
+    <widget class="QCheckBox" name="kcfg_ShowStripOnStart">
+     <property name="text"><string>Show the strip on start</string></property>
+    </widget>
+   </item>
+   <item row="9" column="0" colspan="2">
+    <widget class="QLabel" name="note">
+     <property name="wordWrap"><bool>true</bool></property>
+     <property name="text"><string>Changes apply after the script is restarted (turn it off and on again under Window Management &gt; KWin Scripts).</string></property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

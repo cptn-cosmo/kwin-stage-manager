@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Group and file are filled in by KWin: entries live in kwinrc, [Script-kwin-stage-manager]. -->
+<kcfg xmlns="http://www.kde.org/standards/kcfg/1.0"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0
+      http://www.kde.org/standards/kcfg/1.0/kcfg.xsd">
+  <kcfgfile name=""/>
+  <group name="">
+    <entry name="StripWidth" type="Int">
+      <label>Width of the stage strip in logical pixels</label>
+      <default>180</default>
+      <min>80</min>
+      <max>600</max>
+    </entry>
+    <entry name="MaxVisibleStages" type="Int">
+      <label>Maximum number of stages shown in the strip</label>
+      <default>6</default>
+      <min>1</min>
+      <max>20</max>
+    </entry>
+    <entry name="HidingStrategy" type="Int">
+      <label>How windows outside the active stage are hidden (0 = minimize, 1 = hidden virtual desktop)</label>
+      <default>0</default>
+    </entry>
+    <entry name="AutoSwitchOnFocus" type="Bool">
+      <label>Switch to a window's stage when it gets focus from elsewhere</label>
+      <default>true</default>
+    </entry>
+    <entry name="MaximizedPolicy" type="Int">
+      <label>What to do with maximized or tiled windows under the strip (0 = shrink, 1 = offset, 2 = leave)</label>
+      <default>0</default>
+    </entry>
+    <entry name="KeepWindowsClear" type="Bool">
+      <label>Move windows so they don't sit under the strip</label>
+      <default>true</default>
+    </entry>
+    <entry name="GroupByClass" type="Bool">
+      <label>New windows join the stage their application was grouped into</label>
+      <default>true</default>
+    </entry>
+    <entry name="PersistGroups" type="Bool">
+      <label>Remember grouped applications across sessions</label>
+      <default>false</default>
+    </entry>
+    <entry name="ShowStripOnStart" type="Bool">
+      <label>Show the strip when the script starts</label>
+      <default>true</default>
+    </entry>
+  </group>
+</kcfg>
