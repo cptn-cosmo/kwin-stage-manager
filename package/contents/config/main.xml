@@ -38,6 +38,10 @@
       <label>New windows join the stage their application was grouped into</label>
       <default>true</default>
     </entry>
+    <entry name="FloatFixedSizeWindows" type="Bool">
+      <label>Leave fixed-size and always-on-top windows floating over every stage</label>
+      <default>true</default>
+    </entry>
     <entry name="PersistGroups" type="Bool">
       <label>Remember grouped applications across sessions</label>
       <default>false</default>

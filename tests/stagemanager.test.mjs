@@ -475,3 +475,74 @@ test("a dialog of the shown stage over the strip counts as covering it", () => {
     env.flush();
     assert.equal(sm.stripCover("DP-1", 0, 180), 1);
 });
+
+// Properties as captured from 1Password 8 Quick Access on KWin 6.8.2: a plain
+// normal window whose only tell is that it's fixed-size.
+function quickAccess(ws) {
+    const w = ws.open({ cls: "com.onepassword.OnePassword", geometry: { x: 824, y: 432, width: 400, height: 370 } });
+    w.resizeable = false;
+    w.maximizable = false;
+    return w;
+}
+
+test("fixed-size popups like 1Password Quick Access float over the stage", () => {
+    const { ws, env, sm, add } = setup();
+    const a = add({ cls: "konsole" });
+    const qa = quickAccess(ws);
+    ws.windowAdded.emit(qa);
+    ws.setActive(qa);
+    env.flush();
+    assert.equal(sm.stageOfWindow(qa), null);
+    assert.equal(sm.stages.size, 1);
+    assert.equal(a.minimized, false, "the shown stage stays on screen");
+    assert.equal(qa.minimized, false);
+
+    // switching stages leaves it alone too
+    add({ cls: "kate" });
+    assert.equal(qa.minimized, false);
+    ws.close(qa);
+    env.flush();
+    assert.equal(sm.above.size, 0);
+});
+
+test("always-on-top windows float", () => {
+    const { ws, env, sm, add } = setup();
+    const a = add({ cls: "konsole" });
+    const pip = ws.open({ cls: "firefox", caption: "Picture-in-Picture" });
+    pip.keepAbove = true;
+    ws.windowAdded.emit(pip);
+    env.flush();
+    assert.equal(sm.stageOfWindow(pip), null);
+    assert.equal(a.minimized, false);
+});
+
+test("a floating window over the strip pushes it away", () => {
+    const { ws, env, sm, add } = setup();
+    add({ cls: "konsole", geometry: { x: 400, y: 0, width: 500, height: 500 } });
+    const qa = quickAccess(ws);
+    qa.frameGeometry = { x: 50, y: 300, width: 400, height: 370 };
+    ws.windowAdded.emit(qa);
+    env.flush();
+    assert.equal(sm.stripCover("DP-1", 0, 180), 2);
+    qa.minimized = true;
+    assert.equal(sm.stripCover("DP-1", 0, 180), 0);
+});
+
+test("floating can be turned off", () => {
+    const { ws, env, sm, add } = setup({ floatFixedSize: false });
+    add({ cls: "konsole" });
+    const qa = quickAccess(ws);
+    ws.windowAdded.emit(qa);
+    env.flush();
+    assert.notEqual(sm.stageOfWindow(qa), null);
+});
+
+test("keep-above set later doesn't pull a window out of its stage", () => {
+    const { ws, env, sm, add } = setup();
+    const a = add({ cls: "konsole" });
+    add({ cls: "kate" });
+    a.keepAbove = true;
+    a.desktopsChanged.emit(); // anything that triggers a reconcile
+    env.flush();
+    assert.notEqual(sm.stageOfWindow(a), null);
+});

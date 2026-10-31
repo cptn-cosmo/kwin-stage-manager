@@ -111,6 +111,7 @@ process, so turning the script off and on again keeps running the old version.
 | `MaximizedPolicy` | 0 | maximized/tiled windows under the strip: 0 = shrink, 1 = shift right, 2 = leave them (the strip slides away) |
 | `KeepWindowsClear` | true | when a window opens or is maximized, move it out from under the strip |
 | `GroupByClass` | true | new windows join the stage their app was grouped into |
+| `FloatFixedSizeWindows` | true | windows that open fixed-size or always on top (1Password Quick Access, picture-in-picture) get no stage and float over every stage |
 | `PersistGroups` | false | save those groups to `~/.config/kwin-stagemanagerrc` |
 | `ShowStripOnStart` | true | |
 
@@ -224,6 +225,11 @@ Behavior I checked in a real KWin that the API docs don't promise:
     stages.
   - KWin's optional per-output virtual desktops aren't handled; the global current desktop is used.
 - **Windows on all desktops** are deliberately left alone: no stage, never hidden.
+- **Floating windows.** A window that opens fixed-size (can't be resized or maximized) or always on
+  top gets no stage: it floats over the shown stage and never switches or hides anything. 1Password's
+  Quick Access is a plain normal window on KWin 6.8 whose only tell is its fixed size. Apps whose
+  main window is fixed-size float too; turn off `FloatFixedSizeWindows` if that bothers you. This is
+  decided when a window opens, so setting "keep above" on a staged window later doesn't change it.
 - **Transient windows** follow their parent. A dialog with no parent (`normalWindow` false and no
   `transientFor`) is ignored and stays visible across switches.
 - **New windows always switch stage.** A window that opens in the background still takes over the

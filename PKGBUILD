@@ -1,6 +1,6 @@
 # Maintainer: cosmo <cosmo@geeks.gay>
 pkgname=kwin-stage-manager
-pkgver=0.2.1
+pkgver=0.2.2
 pkgrel=1
 pkgdesc="macOS-style Stage Manager for KWin 6 on Plasma Wayland"
 arch=('any')

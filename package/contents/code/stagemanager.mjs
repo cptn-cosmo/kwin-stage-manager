@@ -28,6 +28,7 @@ export function defaultConfig() {
         maximizedPolicy: MaximizedPolicy.Shrink,
         keepClear: true,
         groupByClass: true,
+        floatFixedSize: true,
         stripVisible: true,
     };
 }
@@ -53,6 +54,7 @@ export function normalizeConfig(raw) {
         maximizedPolicy: Math.min(2, Math.max(0, int(raw.MaximizedPolicy, d.maximizedPolicy))),
         keepClear: bool(raw.KeepWindowsClear, d.keepClear),
         groupByClass: bool(raw.GroupByClass, d.groupByClass),
+        floatFixedSize: bool(raw.FloatFixedSizeWindows, d.floatFixedSize),
         stripVisible: bool(raw.ShowStripOnStart, d.stripVisible),
     };
 }
@@ -80,6 +82,14 @@ export function isAboveStrip(w, platform) {
     if (platform && platform.isOwnWindow(w)) return false;
     return !!(w.appletPopup || w.popupWindow || w.dropdownMenu || w.popupMenu || w.tooltip || w.comboBox ||
         w.notification || w.criticalNotification || w.onScreenDisplay);
+}
+
+// A window that opens fixed-size (can't be resized or maximized) or always on
+// top is a floating helper, e.g. 1Password's Quick Access (a plain normal
+// window on 6.8; only its fixed size tells it apart). It gets no stage and
+// floats over whichever stage is shown.
+export function isFloating(w) {
+    return (!w.resizeable && !w.maximizable) || !!w.keepAbove;
 }
 
 export function rootOf(w) {
@@ -300,6 +310,12 @@ export class StageManager {
         const id = this.platform.id(w);
         if (this.windows.has(id)) return;
         if (classify(w, this.platform) !== "manage") return;
+        // Decided once, when the window opens: setting "keep above" on a
+        // staged window later doesn't pull it out of its stage.
+        if (this.config.floatFixedSize && isFloating(w)) {
+            this.addAbove(w);
+            return;
+        }
         this.windows.set(id, w);
         const reconcile = () => this.scheduleReconcile();
         const list = [
@@ -334,6 +350,7 @@ export class StageManager {
     // Place a managed window into a stage (by class affinity or a fresh one).
     adopt(w) {
         const id = this.platform.id(w);
+        if (!this.windows.has(id)) return null; // not tracked: floating
         if (this.windowStage.has(id)) return this.stages.get(this.windowStage.get(id));
         const ctx = this.effectiveCtx(w);
         if (ctx === null) return null;
@@ -465,7 +482,7 @@ export class StageManager {
             return g.x < x1 - 0.5 && g.x + g.width > x0 + 0.5;
         };
         for (const [, w] of this.above)
-            if (!w.hidden && this.platform.outputName(w) === outputName && hits(w)) return 2;
+            if (!w.hidden && !w.minimized && this.platform.outputName(w) === outputName && hits(w)) return 2;
         const st = this.stages.get(this.active.get(this.currentCtx(outputName)));
         if (!st) return 0;
         const covered = st.members.some(m => {
@@ -481,13 +498,18 @@ export class StageManager {
     }
 
     trackAbove(w) {
-        if (!isAboveStrip(w, this.platform)) return;
+        if (isAboveStrip(w, this.platform)) this.addAbove(w);
+    }
+
+    // Windows the strip must stay clear of: menus/popups and floating windows.
+    addAbove(w) {
         const id = this.platform.id(w);
         if (this.above.has(id)) return;
         const fn = () => this.emit("geometry");
-        safeConnect(w.frameGeometryChanged, fn);
+        const list = [[w.frameGeometryChanged, fn], [w.minimizedChanged, fn]];
+        for (const [sig, f] of list) safeConnect(sig, f);
         this.above.set(id, w);
-        this.connections.set(id, [[w.frameGeometryChanged, fn]]);
+        this.connections.set(id, list);
         this.emit("geometry");
     }
 

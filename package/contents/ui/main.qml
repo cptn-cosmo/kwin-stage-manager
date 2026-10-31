@@ -29,6 +29,7 @@ Item {
         MaximizedPolicy: KWin.readConfig("MaximizedPolicy", 0),
         KeepWindowsClear: KWin.readConfig("KeepWindowsClear", true),
         GroupByClass: KWin.readConfig("GroupByClass", true),
+        FloatFixedSizeWindows: KWin.readConfig("FloatFixedSizeWindows", true),
         ShowStripOnStart: KWin.readConfig("ShowStripOnStart", true),
     })
 
