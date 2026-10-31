@@ -3,11 +3,13 @@
 // The left-edge strip for one output.
 
 import QtQuick
-import QtQuick.Window
+// Qualified on purpose: since KWin 6.8, org.kde.kwin exports its own
+// (uncreatable) `Window` type, which shadows QtQuick's when imported later.
+import QtQuick.Window as QQW
 import org.kde.kwin
 import "../code/stagemanager.mjs" as SM
 
-Window {
+QQW.Window {
     id: strip
 
     property var output
