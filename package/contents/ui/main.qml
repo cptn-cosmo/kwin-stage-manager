@@ -16,6 +16,8 @@ Item {
     property var detach: null
     // Bumped whenever the model changes; strip bindings depend on it.
     property int revision: 0
+    // Bumped on window geometry changes (strip overlap only).
+    property int geomRevision: 0
     property bool stripVisible: cfg.stripVisible
     readonly property bool persistGroups: String(KWin.readConfig("PersistGroups", false)) === "true"
 
@@ -67,6 +69,10 @@ Item {
         });
         const sm = new SM.StageManager(platform, cfg, loadAffinity());
         sm.onChanged(what => {
+            if (what === "geometry") {
+                root.geomRevision++;
+                return;
+            }
             root.revision++;
             if (what === "affinity")
                 root.saveAffinity();
@@ -127,6 +133,7 @@ Item {
             output: modelData
             manager: root.manager
             revision: root.revision
+            geomRevision: root.geomRevision
             stripWidth: root.cfg.stripWidth
             shown: root.stripVisible
         }

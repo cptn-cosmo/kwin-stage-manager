@@ -27,7 +27,7 @@
       <default>true</default>
     </entry>
     <entry name="MaximizedPolicy" type="Int">
-      <label>What to do with maximized or tiled windows under the strip (0 = shrink, 1 = offset, 2 = leave)</label>
+      <label>What to do with maximized or tiled windows under the strip (0 = shrink, 1 = offset, 2 = leave them and let the strip slide away)</label>
       <default>0</default>
     </entry>
     <entry name="KeepWindowsClear" type="Bool">

@@ -13,7 +13,7 @@
         "Id": "kwin-stage-manager",
         "License": "MIT",
         "Name": "Stage Manager",
-        "Version": "0.1.1"
+        "Version": "0.2.0"
     },
     "X-KDE-ConfigModule": "kwin/effects/configs/kcm_kwin4_genericscripted",
     "X-Plasma-API": "declarativescript",

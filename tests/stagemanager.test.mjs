@@ -349,3 +349,89 @@ test("strip reports fullscreen on the visible stage", () => {
     assert.equal(sm.hasFullscreen("DP-1"), true);
     assert.equal(sm.hasFullscreen("DP-2"), false);
 });
+
+// The Plasma desktop: on all desktops, not a normal window.
+function addDesktop(ws, env) {
+    const d = ws.open({ cls: "plasmashell", normalWindow: false, desktopWindow: true });
+    d.onAllDesktops = true;
+    ws.windowAdded.emit(d);
+    env.flush();
+    return d;
+}
+
+test("clicking the desktop sends the shown stage to the strip", () => {
+    const { ws, env, sm, add } = setup();
+    const desk = addDesktop(ws, env);
+    const a = add({ cls: "a" });
+    const b = add({ cls: "b" });
+    ws.setActive(desk);
+    env.flush();
+    assert.equal(visible(ws).filter(w => !w.desktopWindow).length, 0);
+    assert.deepEqual(sm.stripStages("DP-1").map(s => s.windows[0]), [b, a]);
+
+    // picking a stage from the strip brings it back
+    sm.switchTo(sm.stageOfWindow(a).id);
+    env.flush();
+    assert.deepEqual(visible(ws).filter(w => !w.desktopWindow), [a]);
+    assert.equal(sm.stashed.size, 0);
+});
+
+test("a new window after a desktop click opens normally", () => {
+    const { ws, env, sm, add } = setup();
+    const desk = addDesktop(ws, env);
+    add({ cls: "a" });
+    ws.setActive(desk);
+    env.flush();
+    const b = add({ cls: "b" });
+    assert.deepEqual(visible(ws).filter(w => !w.desktopWindow), [b]);
+    assert.equal(sm.stripStages("DP-1").length, 1);
+});
+
+test("dropping a stage while nothing is shown just shows it", () => {
+    const { ws, env, sm, add } = setup();
+    const desk = addDesktop(ws, env);
+    const a = add({ cls: "a" });
+    ws.setActive(desk);
+    env.flush();
+    assert.equal(sm.mergeIntoActive(sm.stageOfWindow(a).id), true);
+    env.flush();
+    assert.equal(a.minimized, false);
+});
+
+test("a stage whose windows were all minimized by hand comes back restored", () => {
+    const { ws, env, sm, add } = setup();
+    const desk = addDesktop(ws, env);
+    const a = add({ cls: "a" });
+    a.minimized = true; // user minimizes the only window; KWin focuses the desktop
+    ws.setActive(desk);
+    env.flush();
+    sm.switchTo(sm.stageOfWindow(a).id);
+    env.flush();
+    assert.equal(a.minimized, false);
+});
+
+test("strip overlap follows the shown stage's windows", () => {
+    const { ws, env, sm, add } = setup();
+    const a = add({ cls: "a", geometry: { x: 400, y: 0, width: 500, height: 500 } });
+    env.flush();
+    assert.equal(sm.stripOverlapped("DP-1", 0, 180), false);
+    a.frameGeometry = { x: 100, y: 0, width: 500, height: 500 }; // user drags it over the strip
+    assert.equal(sm.stripOverlapped("DP-1", 0, 180), true);
+    add({ cls: "b", geometry: { x: 400, y: 0, width: 500, height: 500 } });
+    assert.equal(sm.stripOverlapped("DP-1", 0, 180), false, "a is hidden now");
+    assert.ok(ws);
+});
+
+test("windows moved over the strip by hand stay put across switches", () => {
+    const { ws, env, sm, add } = setup({ stripWidth: 200 });
+    const a = add({ cls: "a", geometry: { x: 400, y: 0, width: 500, height: 500 } });
+    env.flush();
+    a.frameGeometry = { x: 50, y: 0, width: 500, height: 500 };
+    a.interactiveMoveResizeFinished.emit();
+    env.flush();
+    add({ cls: "b" });
+    sm.switchTo(sm.stageOfWindow(a).id);
+    env.flush();
+    assert.equal(a.frameGeometry.x, 50);
+    assert.ok(ws);
+});

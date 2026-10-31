@@ -191,7 +191,9 @@ function createDesktopHider(platform) {
 //   active  = Map ctx -> stageId
 //   affinity= Map resourceClass -> group token (remembers grouping by class)
 //
-// Invariant: in each ctx, only members of the active stage are visible.
+// Invariant: in each ctx, only members of the active stage are visible. A ctx
+// can also have no active stage ("stashed": you clicked the desktop), in
+// which case every stage there sits in the strip.
 // ---------------------------------------------------------------------------
 export class StageManager {
     constructor(platform, config, persisted) {
@@ -205,6 +207,7 @@ export class StageManager {
         this.active = new Map();
         this.affinity = new Map();
         this.adjusted = new Set(); // ids of maximized windows we resized for the strip
+        this.stashed = new Set(); // ctxs whose stages were all sent to the strip
         this.connections = new Map(); // id -> [[signal, handler], ...]
 
         this.clock = 0;
@@ -289,10 +292,10 @@ export class StageManager {
             [w.outputChanged, reconcile],
             [w.desktopsChanged, reconcile],
             [w.skipTaskbarChanged, reconcile],
-            [w.interactiveMoveResizeFinished, () => {
-                this.scheduleReconcile();
-                this.scheduleClearance(w);
-            }],
+            // No clearance after a user move: if you put a window over the
+            // strip on purpose, the strip slides away instead (see stripOverlapped).
+            [w.interactiveMoveResizeFinished, reconcile],
+            [w.frameGeometryChanged, () => this.emit("geometry")],
             [w.minimizedChanged, () => this.onMinimizedChanged(w)],
             [w.maximizedChanged, () => this.scheduleClearance(w)],
             [w.fullScreenChanged, () => {
@@ -439,6 +442,19 @@ export class StageManager {
         });
     }
 
+    // True while a visible window of the shown stage covers the strip column
+    // [x0, x1) on this output. The strip then slides away, as on macOS.
+    stripOverlapped(outputName, x0, x1) {
+        const st = this.stages.get(this.active.get(this.currentCtx(outputName)));
+        if (!st) return false;
+        return st.members.some(m => {
+            const w = this.windows.get(m);
+            if (!w || w.minimized || this.hider.isHidden(w)) return false;
+            const g = w.frameGeometry;
+            return g.x < x1 - 0.5 && g.x + g.width > x0 + 0.5;
+        });
+    }
+
     groupFor(w) {
         return [w].concat(this.platform.transientsOf(w));
     }
@@ -460,6 +476,15 @@ export class StageManager {
                 this.hider.show(this.groupFor(w));
                 if (!w.minimized) this.platform.raise(w);
             }
+            // A stage whose windows were all minimized by hand would come back
+            // empty; activating it should show something, so restore them.
+            const members = st.members.map(m => this.windows.get(m)).filter(Boolean);
+            if (members.length && members.every(w => w.minimized)) {
+                for (const w of members) {
+                    w.minimized = false;
+                    this.platform.raise(w);
+                }
+            }
             for (const other of this.stagesIn(st.ctx)) {
                 if (other.id === st.id) continue;
                 for (const m of other.members) {
@@ -468,6 +493,7 @@ export class StageManager {
                 }
             }
             this.active.set(st.ctx, st.id);
+            this.stashed.delete(st.ctx);
             st.lastUsed = ++this.clock;
 
             let focus = opts.focus || null;
@@ -481,10 +507,6 @@ export class StageManager {
                 }
             }
             if (focus && this.platform.activeWindow() !== focus) this.platform.activate(focus);
-            for (const m of st.members) {
-                const w = this.windows.get(m);
-                if (w) this.scheduleClearance(w);
-            }
         } finally {
             // Hiding/showing makes KWin emit windowActivated/minimizedChanged,
             // some of it after we return. Stay "busy" until the event loop turns.
@@ -493,6 +515,33 @@ export class StageManager {
             });
         }
         this.emit("switch");
+    }
+
+    // Clicking the desktop: send the shown stage to the strip so the desktop
+    // is clear. The ctx then has no active stage until one is picked.
+    stash(ctx) {
+        const st = this.stages.get(this.active.get(ctx));
+        this.stashed.add(ctx);
+        if (!st) return;
+        this.hideAllIn(ctx);
+        this.active.delete(ctx);
+        st.lastUsed = ++this.clock;
+        this.emit("stash");
+    }
+
+    hideAllIn(ctx) {
+        this.busy++;
+        try {
+            for (const st of this.stagesIn(ctx))
+                for (const m of st.members) {
+                    const w = this.windows.get(m);
+                    if (w) this.hider.hide(this.groupFor(w));
+                }
+        } finally {
+            this.platform.defer(() => {
+                this.busy--;
+            });
+        }
     }
 
     switchToPrevious(outputName) {
@@ -530,7 +579,12 @@ export class StageManager {
         if (!src) return false;
         const dstId = this.active.get(src.ctx);
         const dst = this.stages.get(dstId);
-        if (!dst || dst === src) return false;
+        if (dst === src) return false;
+        if (!dst) {
+            // Nothing on screen (desktop was clicked): dropping just shows it.
+            this.switchTo(src.id);
+            return true;
+        }
         const focus = this.platform.activeWindow();
         for (const id of src.members.slice().reverse()) this.moveWindow(id, src, dst);
         this.switchTo(dst.id, { focus: focus, noFocus: true });
@@ -599,6 +653,7 @@ export class StageManager {
             return;
         }
         this.switchTo(st.id, { focus: w });
+        this.scheduleClearance(w);
     }
 
     onWindowRemoved(w) {
@@ -625,6 +680,13 @@ export class StageManager {
 
     onWindowActivated(w) {
         if (this.busy || !w) return;
+        if (w.desktopWindow) {
+            // KWin activates the desktop window when you click the wallpaper
+            // (and when nothing else is left to focus).
+            const out = this.platform.outputName(w);
+            if (out) this.stash(this.currentCtx(out));
+            return;
+        }
         const r = this.managedRoot(w);
         if (!r) return;
         const id = this.platform.id(r);
@@ -650,6 +712,7 @@ export class StageManager {
 
     onMinimizedChanged(w) {
         if (this.busy) return;
+        this.emit("geometry");
         if (w.minimized) return;
         if (this.hider.kind === Strategy.Minimize && this.hider.isHidden(w)) {
             // Restored by someone else (taskbar, script, Overview). Treat it as
@@ -741,12 +804,15 @@ export class StageManager {
             let target = null;
             if (awStage && awStage.ctx === ctx) target = awStage.id;
             else if (this.stages.has(this.active.get(ctx))) target = this.active.get(ctx);
-            else {
+            else if (!this.stashed.has(ctx)) {
                 const s = this.stagesIn(ctx)[0];
                 if (s) target = s.id;
             }
-            if (target === null) this.active.delete(ctx);
-            else this.switchTo(target, { noFocus: true });
+            if (target !== null) this.switchTo(target, { noFocus: true });
+            else {
+                this.active.delete(ctx);
+                this.hideAllIn(ctx);
+            }
         }
         if (touched.size) this.emit("reconcile");
     }

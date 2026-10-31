@@ -25,6 +25,7 @@ export class FakeWindow {
         this.caption = opts.caption || this.resourceClass;
         this.captionNormal = this.caption;
         this.normalWindow = opts.normalWindow !== false;
+        this.desktopWindow = !!opts.desktopWindow;
         this.specialWindow = false;
         this.skipTaskbar = !!opts.skipTaskbar;
         this.managed = true;
@@ -43,7 +44,7 @@ export class FakeWindow {
         this.resize = false;
         this.frameGeometry = opts.geometry || { x: 400, y: 100, width: 800, height: 600 };
         for (const s of ["outputChanged", "desktopsChanged", "skipTaskbarChanged", "interactiveMoveResizeFinished",
-                         "minimizedChanged", "maximizedChanged", "fullScreenChanged"])
+                         "minimizedChanged", "maximizedChanged", "fullScreenChanged", "frameGeometryChanged"])
             this[s] = new Signal();
     }
     get minimized() {

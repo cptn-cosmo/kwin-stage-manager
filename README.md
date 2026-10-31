@@ -21,18 +21,20 @@ unload cleanup.
 - `affinity: Map<resourceClass, token>`. When you group apps, their classes share a token. A new
   window whose class has a token joins a stage that already holds one of those classes (session
   memory; optionally saved across sessions).
-- **Invariant:** in every ctx, only members of the active stage are visible.
+- **Invariant:** in every ctx, only members of the active stage are visible. Clicking the desktop
+  *stashes* the ctx: it has no active stage and every stage sits in the strip.
 
 **Event flow**
 
 | KWin signal | Handler | Effect |
 |---|---|---|
 | `windowAdded` (deferred one tick) | `onWindowAdded` | classify; place in a new stage or its affinity stage; switch to it |
-| `windowActivated` | `onWindowActivated` | if the window (or its transient's parent) is in another stage, switch to that stage |
+| `windowActivated` | `onWindowActivated` | if the window (or its transient's parent) is in another stage, switch to that stage; if it's the desktop, send the shown stage to the strip |
 | `window.minimizedChanged` | `onMinimizedChanged` | something else unminimized a window we hid (taskbar), so treat it like focus |
 | `windowRemoved` | `onWindowRemoved` | drop it; delete an empty stage; if it was active, bring back the most recent stage |
 | `outputChanged` / `desktopsChanged` / `interactiveMoveResizeFinished` / `screensChanged` | `reconcile` (coalesced) | regroup members by their current ctx, split stages that span ctxs, restore the invariant |
-| `maximizedChanged` / `fullScreenChanged` / end of a move | `applyClearance` | keep windows out from under the strip |
+| `windowAdded` / `maximizedChanged` / `fullScreenChanged` | `applyClearance` | keep new and maximized windows out from under the strip |
+| `frameGeometryChanged` / `minimizedChanged` | `stripOverlapped` (QML) | slide the strip away while a shown window covers it |
 
 `switchTo()` first shows and raises the target stage's windows, then hides every other stage in
 the same ctx, so the desktop doesn't flash through. It stays "busy" until the next event-loop turn
@@ -97,14 +99,17 @@ kpackagetool6 --type=KWin/Script -r kwin-stage-manager
 Settings live behind the gear icon next to the script in KWin Scripts. They take effect after you
 turn the script off and on again.
 
+**After upgrading, log out and back in.** KWin keeps compiled QML in memory for the life of the
+process, so turning the script off and on again keeps running the old version.
+
 | Key | Default | |
 |---|---|---|
 | `StripWidth` | 180 | px; also how far windows are kept from the left edge |
 | `MaxVisibleStages` | 6 | stages shown in the strip |
 | `HidingStrategy` | 0 | 0 = minimize, 1 = hidden virtual desktop |
 | `AutoSwitchOnFocus` | true | switch stage when a hidden window gets focus |
-| `MaximizedPolicy` | 0 | maximized/tiled windows under the strip: 0 = shrink, 1 = shift right, 2 = leave |
-| `KeepWindowsClear` | true | move floating windows out from under the strip |
+| `MaximizedPolicy` | 0 | maximized/tiled windows under the strip: 0 = shrink, 1 = shift right, 2 = leave them (the strip slides away) |
+| `KeepWindowsClear` | true | when a window opens or is maximized, move it out from under the strip |
 | `GroupByClass` | true | new windows join the stage their app was grouped into |
 | `PersistGroups` | false | save those groups to `~/.config/kwin-stagemanagerrc` |
 | `ShowStripOnStart` | true | |
@@ -120,8 +125,14 @@ Rebind them under System Settings → Shortcuts → KWin.
 | Meta+Alt+Tab | Switch to the previous stage |
 | Meta+Alt+S | Show/hide the strip (hiding it also re-maximizes windows that were shrunk) |
 
-Mouse: click a thumbnail to switch. Drag a thumbnail about a third of its width to the right and
-release (it gets a highlighted outline) to merge that stage into the current one.
+Mouse:
+
+- Click a thumbnail to switch to that stage.
+- Drag a thumbnail out of the strip and release it over the highlighted area to add its windows to
+  the current stage. Releasing it back over the strip cancels.
+- Click the desktop to send the current stage to the strip.
+- If you drag a window over the strip, the strip slides away and leaves a thin handle at the screen
+  edge. Hover the edge to peek at it. Windows you place there yourself aren't moved back.
 
 ## Debugging
 
@@ -174,6 +185,11 @@ Behavior I checked in a real KWin that the API docs don't promise:
   is excluded by its title.
 - The strip lands in layer 9 (overlay), above fullscreen windows, so it hides itself while the
   visible stage on that output has a fullscreen window.
+- `Qt.Tool` must not be used on the strip: it includes the `Qt.Popup` bit, and KWin then treats the
+  strip as a popup that grabs focus and is dismissed by the next click elsewhere.
+  `Qt.BypassWindowManagerHint` stops KWin from centering it on screen.
+- Since KWin 6.8, `org.kde.kwin` exports an uncreatable `Window` type, so QtQuick's `Window` has to
+  be imported under a qualifier.
 - `WindowThumbnail` renders minimized windows and windows on other desktops.
 - Setting `frameGeometry` on a maximized window keeps `maximizeMode == 3`.
 - `Component.onDestruction` runs on `unloadScript`, so cleanup works.
@@ -210,9 +226,16 @@ Behavior I checked in a real KWin that the API docs don't promise:
   `transientFor`) is ignored and stays visible across switches.
 - **New windows always switch stage.** A window that opens in the background still takes over the
   screen, like on macOS. Windows that start minimized don't.
-- **Drag-to-merge** stays inside the strip's own window on purpose, because pointer delivery outside
-  an internal window during a press isn't something to rely on. Dragging a window from the desktop
-  onto a thumbnail isn't possible from a script.
+- **Drag-to-merge.** While you drag a thumbnail, the strip window covers the whole output so the drag
+  can reach the drop area. Dragging a real window onto a thumbnail isn't possible from a script.
+- **Stage animations** come from the strip (sliding, thumbnails flying in and out). The windows
+  themselves still use KWin's minimize animation, which flies toward the taskbar: scripts can't
+  change a window's `iconGeometry`, so it can't be pointed at the strip.
+- **Desktop click** relies on KWin activating the desktop window when you click the wallpaper. KWin
+  also activates it when nothing else is left to focus (for example after you minimize the last
+  shown window), and that sends the stage to the strip too.
+- **The strip's edge handle** is 2 px wide and sits above windows, so it takes clicks in that strip
+  of the screen while the strip is slid away.
 - **Config changes** need the script restarted, because scripts aren't notified of config changes.
 - **Startup.** Enabling the script hides every window except the active one, since each existing
   window becomes its own stage.

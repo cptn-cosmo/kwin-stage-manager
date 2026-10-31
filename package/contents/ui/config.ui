@@ -48,7 +48,7 @@
     <widget class="QComboBox" name="kcfg_MaximizedPolicy">
      <item><property name="text"><string>Shrink to make room for the strip</string></property></item>
      <item><property name="text"><string>Shift right, keep size</string></property></item>
-     <item><property name="text"><string>Leave alone (strip covers them)</string></property></item>
+     <item><property name="text"><string>Leave alone (strip slides away while covered)</string></property></item>
     </widget>
    </item>
    <item row="4" column="1">

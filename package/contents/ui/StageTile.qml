@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 //
 // One stage in the strip: up to three stacked live thumbnails plus the app
-// icon. Click to switch; drag to the right to merge into the current stage.
+// icon. Click to switch. Dragging is handled by the strip (StripWindow.qml);
+// the tile only reports where the pointer is.
 
 import QtQuick
 import org.kde.kwin
@@ -10,30 +11,31 @@ import org.kde.kirigami as Kirigami
 Item {
     id: tile
 
+    // Latest view data for this stage, or undefined once it left the strip.
+    property var current
+    // What we draw. Keeps the last known stage so the tile can still be seen
+    // while its remove transition plays.
     property var stage
     property real aspect: 0.6
-    signal activated
-    signal mergeRequested
+    property bool beingDragged: false
 
-    // How far (fraction of width) a drag must go before release merges.
-    // Kept small so the pointer never has to leave the strip window: whether
-    // KWin keeps delivering motion to an internal window after the pointer
-    // leaves it during a press isn't something we want to depend on.
-    readonly property real mergeThreshold: 0.35
-    readonly property bool willMerge: visual.x > width * mergeThreshold
+    signal activated
+    signal dragStarted(point scenePos)
+    signal dragMoved(point scenePos)
+    signal dragFinished(point scenePos)
+
+    onCurrentChanged: if (current) stage = current
 
     height: Math.round(width * aspect) + 12
+    opacity: beingDragged ? 0.35 : 1
+    Behavior on opacity { NumberAnimation { duration: 150 } }
 
     Item {
         id: visual
         width: tile.width
         height: tile.height
-        scale: mouse.containsMouse && !mouse.drag.active ? 1.05 : 1
-        Behavior on scale { NumberAnimation { duration: 120 } }
-        Behavior on x {
-            enabled: !mouse.drag.active
-            NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
-        }
+        scale: mouse.containsMouse && !tile.beingDragged ? 1.06 : 1
+        Behavior on scale { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
 
         Repeater {
             // windows[0] is the stage's most recent window: drawn on top.
@@ -79,16 +81,6 @@ Item {
                 font.pixelSize: 11
             }
         }
-
-        Rectangle {
-            anchors.fill: parent
-            z: 20
-            radius: 6
-            color: "transparent"
-            border.width: 2
-            border.color: Kirigami.Theme.highlightColor
-            visible: tile.willMerge
-        }
     }
 
     MouseArea {
@@ -96,22 +88,40 @@ Item {
         anchors.fill: parent
         hoverEnabled: true
         acceptedButtons: Qt.LeftButton
-        drag.target: visual
-        drag.axis: Drag.XAxis
-        drag.minimumX: 0
-        drag.maximumX: tile.width
-        drag.filterChildren: true
+        preventStealing: true
 
-        property bool dragged: false
-        onPressed: dragged = false
-        onPositionChanged: if (drag.active) dragged = true
-        onReleased: {
-            const merge = tile.willMerge;
-            visual.x = 0;
-            if (merge)
-                tile.mergeRequested();
-            else if (!dragged)
+        readonly property real threshold: 8
+        property point pressPos
+        property bool dragging: false
+
+        onPressed: m => {
+            pressPos = Qt.point(m.x, m.y);
+            dragging = false;
+        }
+        onPositionChanged: m => {
+            if (!pressed)
+                return;
+            const scene = tile.mapToItem(null, m.x, m.y);
+            if (!dragging && Math.hypot(m.x - pressPos.x, m.y - pressPos.y) > threshold) {
+                dragging = true;
+                tile.dragStarted(scene);
+            }
+            if (dragging)
+                tile.dragMoved(scene);
+        }
+        onReleased: m => {
+            if (dragging) {
+                dragging = false;
+                tile.dragFinished(tile.mapToItem(null, m.x, m.y));
+            } else {
                 tile.activated();
+            }
+        }
+        onCanceled: {
+            if (dragging) {
+                dragging = false;
+                tile.dragFinished(Qt.point(-1, -1));
+            }
         }
     }
 }
