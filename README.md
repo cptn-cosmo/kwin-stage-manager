@@ -184,7 +184,9 @@ Behavior I checked in a real KWin that the API docs don't promise:
 - The strip, a KWin internal window, reports `normalWindow: true` and an empty `resourceClass`. It
   is excluded by its title.
 - The strip lands in layer 9 (overlay), above fullscreen windows, so it hides itself while the
-  visible stage on that output has a fullscreen window.
+  visible stage on that output has a fullscreen window. KWin keeps windows created by scripts in
+  that layer no matter what: `Qt.WindowStaysOnBottomHint` and setting `keepBelow` from a script are
+  both ignored. So the strip can't sit below the KDE menu; it gets out of the way instead.
 - `Qt.Tool` must not be used on the strip: it includes the `Qt.Popup` bit, and KWin then treats the
   strip as a popup that grabs focus and is dismissed by the next click elsewhere.
   `Qt.BypassWindowManagerHint` stops KWin from centering it on screen.
@@ -234,6 +236,10 @@ Behavior I checked in a real KWin that the API docs don't promise:
 - **Desktop click** relies on KWin activating the desktop window when you click the wallpaper. KWin
   also activates it when nothing else is left to focus (for example after you minimize the last
   shown window), and that sends the stage to the strip too.
+- **Menus and popups.** The strip can't be in the desktop layer (see API notes), so when the KDE
+  menu, a context menu, a tooltip, a notification or an OSD opens over it, it quickly slides away
+  and returns once that closes. A popup type KWin doesn't report as a popup would be drawn under the
+  strip.
 - **The strip's edge handle** is 2 px wide and sits above windows, so it takes clicks in that strip
   of the screen while the strip is slid away.
 - **Config changes** need the script restarted, because scripts aren't notified of config changes.

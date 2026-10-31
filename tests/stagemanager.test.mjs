@@ -435,3 +435,43 @@ test("windows moved over the strip by hand stay put across switches", () => {
     assert.equal(a.frameGeometry.x, 50);
     assert.ok(ws);
 });
+
+test("menus and popups over the strip push it away", () => {
+    const { ws, env, sm, add } = setup();
+    add({ cls: "a", geometry: { x: 400, y: 0, width: 500, height: 500 } });
+    add({ cls: "b", geometry: { x: 400, y: 0, width: 500, height: 500 } });
+    assert.equal(sm.stripCover("DP-1", 0, 180), 0);
+
+    // Kickoff opening from a bottom-left panel
+    const menu = ws.open({ cls: "plasmashell", normalWindow: false, geometry: { x: 0, y: 400, width: 600, height: 650 } });
+    menu.appletPopup = true;
+    ws.windowAdded.emit(menu);
+    assert.equal(sm.stripCover("DP-1", 0, 180), 2, "counts before the deferred add runs");
+    env.flush();
+    assert.equal(sm.stages.size, 2, "the menu is not a stage");
+
+    // on another output it doesn't matter
+    assert.equal(sm.stripCover("DP-2", 0, 180), 0);
+
+    ws.close(menu);
+    env.flush();
+    assert.equal(sm.stripCover("DP-1", 0, 180), 0);
+});
+
+test("a popup elsewhere on screen leaves the strip alone", () => {
+    const { ws, env, sm, add } = setup();
+    add({ cls: "a", geometry: { x: 400, y: 0, width: 500, height: 500 } });
+    const n = ws.open({ cls: "plasmashell", normalWindow: false, geometry: { x: 1500, y: 900, width: 400, height: 120 } });
+    n.notification = true;
+    ws.windowAdded.emit(n);
+    env.flush();
+    assert.equal(sm.stripCover("DP-1", 0, 180), 0);
+});
+
+test("a dialog of the shown stage over the strip counts as covering it", () => {
+    const { ws, env, sm, add } = setup();
+    const a = add({ cls: "a", geometry: { x: 400, y: 0, width: 500, height: 500 } });
+    add({ cls: "a", transientFor: a, normalWindow: false, geometry: { x: 20, y: 100, width: 300, height: 200 } });
+    env.flush();
+    assert.equal(sm.stripCover("DP-1", 0, 180), 1);
+});

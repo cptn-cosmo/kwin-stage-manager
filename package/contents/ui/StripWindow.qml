@@ -50,21 +50,31 @@ QQW.Window {
             return output.geometry;
         }
     }
-    readonly property bool overlapped: {
+    // 0 nothing, 1 a window of the shown stage, 2 a menu/popup/notification.
+    // KWin keeps this window in the overlay layer whatever we ask for, so
+    // the strip can't sit under the KDE menu; it gets out of its way instead.
+    readonly property int cover: {
         revision;
         geomRevision;
-        return manager && output ? manager.stripOverlapped(String(output.name), area.x, area.x + stripWidth) : false;
+        return manager && output ? manager.stripCover(String(output.name), area.x, area.x + stripWidth) : 0;
     }
+    readonly property bool overlapped: cover !== 0
+    readonly property bool popupAbove: cover === 2
 
     // --- show / hide -------------------------------------------------------
     property bool peeking: false
     readonly property bool hasContent: shown && !fullscreenBelow && stages.length > 0
-    readonly property bool revealed: hasContent && (!overlapped || peeking || dragging)
+    // A menu or popup always wins, even over a peek.
+    readonly property bool revealed: hasContent && !popupAbove && (!overlapped || peeking || dragging)
     // 0 = slid out, 1 = fully in. Everything visual follows this.
     property real reveal: revealed ? 1 : 0
-    Behavior on reveal { NumberAnimation { duration: strip.duration; easing.type: Easing.OutCubic } }
+    Behavior on reveal {
+        // Fast when a menu opens on top, so it isn't drawn over for long.
+        NumberAnimation { duration: strip.popupAbove ? 90 : strip.duration; easing.type: Easing.OutCubic }
+    }
 
     onOverlappedChanged: if (!overlapped) peeking = false
+    onPopupAboveChanged: if (popupAbove) peeking = false
 
     Timer {
         id: unpeek
@@ -158,7 +168,7 @@ QQW.Window {
         HoverHandler {
             id: hover
             onHoveredChanged: {
-                if (hovered && strip.overlapped)
+                if (hovered && strip.overlapped && !strip.popupAbove)
                     strip.peeking = true;
                 else if (!hovered)
                     unpeek.restart();

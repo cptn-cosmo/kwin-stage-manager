@@ -70,6 +70,18 @@ export function classify(w, platform) {
     return "manage";
 }
 
+// Windows that should appear above the strip: the KDE menu (an applet popup),
+// context menus, tooltips, notifications, OSDs. KWin keeps script-created
+// windows like our strip in the overlay layer no matter what (Qt flags and
+// keepBelow are both ignored, checked on 6.8.2), so instead of putting the
+// strip under these we move it out of their way.
+export function isAboveStrip(w, platform) {
+    if (!w || w.deleted || w.desktopWindow) return false;
+    if (platform && platform.isOwnWindow(w)) return false;
+    return !!(w.appletPopup || w.popupWindow || w.dropdownMenu || w.popupMenu || w.tooltip || w.comboBox ||
+        w.notification || w.criticalNotification || w.onScreenDisplay);
+}
+
 export function rootOf(w) {
     let r = w;
     for (let i = 0; i < 16 && r && r.transient && r.transientFor; i++) r = r.transientFor;
@@ -208,6 +220,7 @@ export class StageManager {
         this.affinity = new Map();
         this.adjusted = new Set(); // ids of maximized windows we resized for the strip
         this.stashed = new Set(); // ctxs whose stages were all sent to the strip
+        this.above = new Map(); // id -> window that the strip must stay clear of (menus, popups, ...)
         this.connections = new Map(); // id -> [[signal, handler], ...]
 
         this.clock = 0;
@@ -246,6 +259,7 @@ export class StageManager {
         this.hider.cleanupStale();
         const all = this.platform.windows();
         for (const w of all) this.track(w);
+        for (const w of all) this.trackAbove(w);
         for (const w of all) if (classify(w, this.platform) === "manage") this.adopt(w);
 
         // Pick the initial active stage per ctx: the active window's stage
@@ -442,17 +456,39 @@ export class StageManager {
         });
     }
 
-    // True while a visible window of the shown stage covers the strip column
-    // [x0, x1) on this output. The strip then slides away, as on macOS.
-    stripOverlapped(outputName, x0, x1) {
-        const st = this.stages.get(this.active.get(this.currentCtx(outputName)));
-        if (!st) return false;
-        return st.members.some(m => {
-            const w = this.windows.get(m);
-            if (!w || w.minimized || this.hider.isHidden(w)) return false;
+    // What covers the strip column [x0, x1) on this output:
+    //   0 nothing, 1 a window of the shown stage (strip slides away, as on
+    //   macOS), 2 a menu/popup/notification (strip gets out of the way fast).
+    stripCover(outputName, x0, x1) {
+        const hits = w => {
             const g = w.frameGeometry;
             return g.x < x1 - 0.5 && g.x + g.width > x0 + 0.5;
+        };
+        for (const [, w] of this.above)
+            if (!w.hidden && this.platform.outputName(w) === outputName && hits(w)) return 2;
+        const st = this.stages.get(this.active.get(this.currentCtx(outputName)));
+        if (!st) return 0;
+        const covered = st.members.some(m => {
+            const w = this.windows.get(m);
+            if (!w || w.minimized || this.hider.isHidden(w)) return false;
+            return hits(w) || this.platform.transientsOf(w).some(t => !t.minimized && hits(t));
         });
+        return covered ? 1 : 0;
+    }
+
+    stripOverlapped(outputName, x0, x1) {
+        return this.stripCover(outputName, x0, x1) !== 0;
+    }
+
+    trackAbove(w) {
+        if (!isAboveStrip(w, this.platform)) return;
+        const id = this.platform.id(w);
+        if (this.above.has(id)) return;
+        const fn = () => this.emit("geometry");
+        safeConnect(w.frameGeometryChanged, fn);
+        this.above.set(id, w);
+        this.connections.set(id, [[w.frameGeometryChanged, fn]]);
+        this.emit("geometry");
     }
 
     groupFor(w) {
@@ -643,6 +679,7 @@ export class StageManager {
 
     // ----- events ----------------------------------------------------------
     onWindowAdded(w) {
+        this.trackAbove(w);
         this.track(w);
         if (classify(w, this.platform) !== "manage") return;
         const st = this.adopt(w);
@@ -658,6 +695,11 @@ export class StageManager {
 
     onWindowRemoved(w) {
         const id = this.platform.id(w);
+        if (this.above.delete(id)) {
+            this.untrack(w);
+            this.emit("geometry");
+            return;
+        }
         const st = this.stageOfWindow(w);
         this.untrack(w);
         if (!st) return;
@@ -1003,9 +1045,13 @@ export function createKWinPlatform(env) {
 export function attachToWorkspace(sm, ws) {
     let lastDesktop = ws.currentDesktop;
     const handlers = [
-        [ws.windowAdded, w => sm.platform.defer(() => {
-            if (!w.deleted) sm.onWindowAdded(w);
-        })],
+        [ws.windowAdded, w => {
+            // Menus and popups count right away; everything else waits a tick.
+            sm.trackAbove(w);
+            sm.platform.defer(() => {
+                if (!w.deleted) sm.onWindowAdded(w);
+            });
+        }],
         [ws.windowRemoved, w => sm.onWindowRemoved(w)],
         [ws.windowActivated, w => sm.onWindowActivated(w)],
         [ws.currentDesktopChanged, () => {
