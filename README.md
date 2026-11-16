@@ -67,7 +67,7 @@ tests/
 ├── fakes.mjs                         fake Workspace / Window / signals
 └── stagemanager.test.mjs             node --test suite
 tools/nested-session.sh               run it in an isolated nested KWin
-PKGBUILD                              Arch package (git source, tag v$pkgver)
+PKGBUILD                              Arch package (GitHub release tarball)
 ```
 
 ## Install / enable / uninstall
